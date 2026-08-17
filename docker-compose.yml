@@ -58,6 +58,9 @@ services:
       - PGID=1000
       - TZ=${TZ:-UTC}
       - CHROME_CLI=https://www.google.com/ # 可选：设置默认启动页
+      # 可选：设置后 Web 界面需要登录（CUSTOM_USER + PASSWORD 都填才生效）
+      - CUSTOM_USER=${CHROMIUM_USER:-}
+      - PASSWORD=${CHROMIUM_PASSWORD:-}
     volumes:
       - chromium-config:/config
     shm_size: "1gb"
