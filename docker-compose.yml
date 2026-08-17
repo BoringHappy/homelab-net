@@ -1,9 +1,12 @@
 services:
-  # 统一网络容器：mihomo + tailscale + cloudflare mesh + cloudflare tunnel
+  # 统一网络容器：mihomo + tailscale + cloudflare mesh
   # 共享同一个网络命名空间，其余容器用 network_mode: service:net 复用
   net:
     build:
       context: ./net
+      args:
+        # 基础镜像仓库，可用 .env 的 REGISTRY 覆盖（如国内镜像源）
+        REGISTRY: ${REGISTRY:-docker.io}
     container_name: unified-net
     hostname: unified-net
     restart: unless-stopped
@@ -28,17 +31,42 @@ services:
       # 持久化身份/状态（如需重新注册，删除对应卷即可）
       - ts-state:/var/lib/tailscale
       - warp-state:/var/lib/cloudflare-warp
-      - cfd-state:/etc/cloudflared
     ports:
       # mihomo mixed 代理端口（可选，给局域网设备用）
       - "7890:7890"
       # mihomo 控制面板（可选）
       - "9090:9090"
+      # Chromium Web 界面：容器内固定监听 3000，宿主机映射到高位端口（可用 CHROMIUM_PORT 覆盖）
+      - "${CHROMIUM_PORT:-18000}:3000"
     networks:
       # 同时保留默认 bridge（端口发布/宿主机访问）和 macvlan（局域网固定 IP）
       default: {}
       macvlan_net:
         ipv4_address: ${NET_IP:-192.168.5.50}
+
+  # 示例业务容器：Chromium 浏览器（共享 net 的网络命名空间）
+  # 浏览器界面默认监听 3000 端口；共享 netns 时端口发布统一在 net 服务上声明，
+  # 需要局域网访问的话在 net 服务加 "3000:3000"
+  chromium:
+    image: ${REGISTRY:-docker.io}/linuxserver/chromium:latest
+    container_name: chromium
+    network_mode: "service:net"
+    security_opt:
+      - seccomp:unconfined # 必须：防止 Chrome 的沙盒机制在 Docker 中崩溃
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-UTC}
+      - CHROME_CLI=https://www.google.com/ # 可选：设置默认启动页
+      # 可选：设置后 Web 界面需要登录（CUSTOM_USER + PASSWORD 都填才生效）
+      - CUSTOM_USER=${CHROMIUM_USER:-}
+      - PASSWORD=${CHROMIUM_PASSWORD:-}
+    volumes:
+      - chromium-config:/config
+    shm_size: "1gb"
+    restart: unless-stopped
+    depends_on:
+      - net
 
 networks:
   macvlan_net:
@@ -54,4 +82,4 @@ networks:
 volumes:
   ts-state:
   warp-state:
-  cfd-state:
+  chromium-config:

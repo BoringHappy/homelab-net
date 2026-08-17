@@ -1,19 +1,19 @@
 #!/bin/bash
 # Unified Container Network entrypoint
-# 同时拉起 mihomo / tailscale / cloudflare mesh / cloudflare tunnel，
+# 同时拉起 mihomo / tailscale / cloudflare mesh，
 # 任一进程退出时整个容器退出，由 docker restart 策略整体重启。
 #
 # 启动顺序：
 #   1. dbus（mesh 前置）
 #   2. mihomo：最先启动，等 DNS(127.0.0.1:53) 就绪后再拉起后面的组件，
-#      避免 tailscale / mesh / tunnel 启动期的域名解析短暂失败
-#   3. cloudflare mesh、tailscale、cloudflared
+#      避免 tailscale / mesh 启动期的域名解析短暂失败
+#   3. cloudflare mesh、tailscale
 #
 # mihomo 配置里已把 Tailscale(100.64.0.0/10) 和 Mesh(100.96.0.0/12) 网段设为
 # DIRECT，这两个网段的业务流量不经过代理；控制面流量（注册/登录）走 mihomo。
 #
 # 服务选择：SERVICES 环境变量，逗号分隔，可选：
-#   mihomo / tailscale / mesh / cloudflared
+#   mihomo / tailscale / mesh
 # 默认全部启动。例：SERVICES=mihomo,tailscale 只启动代理和 tailscale。
 
 PIDS=""
@@ -24,7 +24,7 @@ start() {
 }
 
 # ---------- 服务选择 ----------
-SERVICES="${SERVICES:-mihomo,tailscale,mesh,cloudflared}"
+SERVICES="${SERVICES:-mihomo,tailscale,mesh}"
 SERVICES="$(printf '%s' "${SERVICES}" | tr '[:upper:]' '[:lower:]' | tr -d ' ')"
 
 svc_enabled() {
@@ -105,21 +105,6 @@ if svc_enabled tailscale; then
     fi
 else
     echo "[tailscale] disabled"
-fi
-
-# ---------- cloudflared（Cloudflare Tunnel） ----------
-if svc_enabled cloudflared; then
-    if [ -n "${TUNNEL_TOKEN:-}" ]; then
-        echo "[cloudflared] starting tunnel with TUNNEL_TOKEN"
-        start cloudflared --no-autoupdate tunnel run --token "${TUNNEL_TOKEN}"
-    elif [ -n "${TUNNEL_ID:-}" ] && [ -n "${TUNNEL_CRED_FILE:-}" ]; then
-        echo "[cloudflared] starting tunnel ${TUNNEL_ID}"
-        start cloudflared --no-autoupdate tunnel run --cred-file "${TUNNEL_CRED_FILE}" "${TUNNEL_ID}"
-    else
-        echo "[cloudflared] TUNNEL_TOKEN not set, skip"
-    fi
-else
-    echo "[cloudflared] disabled"
 fi
 
 echo "[init] all services launched, waiting"

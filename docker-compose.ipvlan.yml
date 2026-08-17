@@ -10,6 +10,9 @@ services:
   net:
     build:
       context: ./net
+      args:
+        # 基础镜像仓库，可用 .env 的 REGISTRY 覆盖（如国内镜像源）
+        REGISTRY: ${REGISTRY:-docker.io}
     container_name: unified-net
     hostname: unified-net
     restart: unless-stopped
@@ -33,7 +36,6 @@ services:
       # 持久化身份/状态（如需重新注册，删除对应卷即可）
       - ts-state:/var/lib/tailscale
       - warp-state:/var/lib/cloudflare-warp
-      - cfd-state:/etc/cloudflared
     ports:
       # 宿主机访问容器时走这里（局域网设备直接访问 NET_IP）
       - "7890:7890"
@@ -59,4 +61,3 @@ networks:
 volumes:
   ts-state:
   warp-state:
-  cfd-state:

@@ -1,19 +1,19 @@
 # Unified Container Network
 
-统一的容器网络出口：把 **mihomo（代理）+ Tailscale + Cloudflare Mesh + Cloudflare Tunnel** 放进同一个网络命名空间，其他容器共享这一套网络。
+统一的容器网络出口：把 **mihomo（代理）+ Tailscale + Cloudflare Mesh** 放进同一个网络命名空间，其他容器共享这一套网络。
 
 ## 架构
 
-一个 `net` 容器持有唯一的网络命名空间，入口脚本同时拉起 4 个进程：
+一个 `net` 容器持有唯一的网络命名空间，入口脚本同时拉起 3 个进程：
 
 - **mihomo** 以 TUN 模式接管默认路由，按目标地址分流：
   - LAN、Tailscale（`100.64.0.0/10`）、Cloudflare Mesh/WARP（`100.96.0.0/12`）→ DIRECT，不经代理
   - 其余流量 → 走代理出站
-- **入站流量天然不经过 mihomo**：进入容器自身 IP 的包由内核本地投递，不会进入 tun0（`strict-route: false`）。Tailscale / Mesh / Tunnel 的入站连接直接到达对应服务。
+- **入站流量天然不经过 mihomo**：进入容器自身 IP 的包由内核本地投递，不会进入 tun0（`strict-route: false`）。Tailscale / Mesh 的入站连接直接到达对应服务。
 
 任一进程退出时容器整体退出，由 Docker 的 `restart` 策略整机拉起。
 
-其他容器通过 `network_mode: service:net` 复用整个网络，出站自动按上述策略路由，入站自动经 Tailscale / Mesh / Tunnel 暴露。
+其他容器通过 `network_mode: service:net` 复用整个网络，出站自动按上述策略路由，入站自动经 Tailscale / Mesh 暴露。
 
 ## 目录结构
 
@@ -24,7 +24,7 @@
 ├── mihomo/
 │   └── config.example.yaml         # mihomo 分流配置（挂载为 /etc/mihomo/config.yaml）
 └── net/
-    ├── Dockerfile                  # 单镜像：4 个网络组件
+    ├── Dockerfile                  # 单镜像：3 个网络组件（基础镜像仓库可用 REGISTRY 覆盖）
     ├── entrypoint.sh               # 启动脚本：同时拉起全部进程
 ```
 
@@ -32,7 +32,7 @@
 
 首次使用前，先编辑两个文件：
 
-- `.env`：`cp .env.example .env` 后填写 `TS_AUTHKEY` / `TUNNEL_TOKEN` / `MESH_NODE_TOKEN`，并按需调整 macvlan 网卡（`MACVLAN_PARENT`）和固定 IP（`NET_IP`）
+- `.env`：`cp .env.example .env` 后填写 `TS_AUTHKEY` / `MESH_NODE_TOKEN`，并按需调整 macvlan 网卡（`MACVLAN_PARENT`）和固定 IP（`NET_IP`）
 - `mihomo/config.example.yaml`：把示例的 `example-proxy` 替换成你自己的代理节点
 
 默认使用 macvlan 模式（`docker-compose.yml`），之后一条命令完成构建和启动：
@@ -96,14 +96,15 @@ docker compose -f docker-compose.ipvlan.yml up -d --build
 
 | 变量 | 服务 | 说明 |
 | --- | --- | --- |
+| `REGISTRY` | 构建 | 基础镜像仓库，默认 `docker.io`，可换成镜像源/私有仓库 |
 | `TS_AUTHKEY` | Tailscale | 登录密钥，[管理后台](https://login.tailscale.com/admin/settings/keys)生成 |
 | `TS_AUTH_SERVER` | Tailscale | 可选，自定义控制服务器（如 Headscale），默认空 = 官方控制平面 |
 | `TS_HOSTNAME` | Tailscale | 可选，节点名 |
 | `TS_EXTRA_ARGS` | Tailscale | 可选，`tailscale up` 附加参数，如 `--advertise-routes=192.168.1.0/24` |
-| `TUNNEL_TOKEN` | Cloudflare Tunnel | 隧道 token（优先于凭据文件方式） |
-| `TUNNEL_ID` / `TUNNEL_CRED_FILE` | Cloudflare Tunnel | 可选，凭据文件方式（文件放在 `cfd-state` 卷或挂载目录） |
 | `MESH_NODE_TOKEN` | Cloudflare Mesh | Mesh 节点 token，控制台 *Networking → Mesh → Add a node* |
-| `SERVICES` | 服务选择 | 逗号分隔，可选 `mihomo` / `tailscale` / `mesh` / `cloudflared`，默认全部启动 |
+| `SERVICES` | 服务选择 | 逗号分隔，可选 `mihomo` / `tailscale` / `mesh`，默认全部启动 |
+| `CHROMIUM_PORT` | Chromium | 可选，Chromium Web 界面映射到宿主机的端口，默认 `18000`（容器内固定监听 3000） |
+| `CHROMIUM_USER` / `CHROMIUM_PASSWORD` | Chromium | 可选，Chromium Web 界面登录凭据；两者都填才会要求登录，默认无认证 |
 | `TZ` | 通用 | 时区 |
 
 `.env` 已被 `.gitignore` 忽略，不会提交到仓库。
@@ -114,7 +115,7 @@ docker compose -f docker-compose.ipvlan.yml up -d --build
 
 ```bash
 SERVICES=mihomo,tailscale        # 只要代理 + tailscale
-SERVICES=mesh,cloudflared        # 只要 mesh + 隧道
+SERVICES=mesh                    # 只要 mesh
 SERVICES=mihomo                  # 只做透明代理网关
 ```
 
@@ -127,7 +128,34 @@ SERVICES=mihomo                  # 只做透明代理网关
 | `./mihomo/config.example.yaml` | `/etc/mihomo/config.yaml` | mihomo 配置 |
 | `ts-state` 卷 | `/var/lib/tailscale` | Tailscale 节点身份，删除卷 = 重新登录 |
 | `warp-state` 卷 | `/var/lib/cloudflare-warp` | Mesh 注册状态，删除卷 = 重新注册 |
-| `cfd-state` 卷 | `/etc/cloudflared` | cloudflared 凭据文件目录 |
+
+## 单独部署 Cloudflare Tunnel（可选）
+
+`net` 镜像不再内置 cloudflared，需要隧道时把它作为独立容器部署，并共享 `net` 的网络命名空间，这样它和业务容器共用同一张网卡，可以直接通过 `localhost` 转发本地服务：
+
+```yaml
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    network_mode: service:net
+    depends_on:
+      - net
+    command: tunnel --no-autoupdate run --token <your-tunnel-token>
+    # 本地管理模式（凭据文件 + ingress 白名单）示例：
+    # command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run --cred-file /etc/cloudflared/<tunnel-id>.json <tunnel-id>
+    # volumes:
+    #   - ./cloudflared/config.yml:/etc/cloudflared/config.yml:ro
+    #   - ./cloudflared/<tunnel-id>.json:/etc/cloudflared/<tunnel-id>.json:ro
+```
+
+Tunnel 只能转发你明确列出的服务：
+
+- **token 模式**：配置在 Cloudflare 控制台管理（*Zero Trust → Networks → Tunnels → 你的隧道 → Public Hostnames*），只添加想暴露的域名并指向对应的本地服务（如 `http://localhost:8080`），未添加的域名不会被转发。
+- **本地管理模式**：用 ingress 白名单配置文件，规则从上往下匹配，最后一条 `- service: http_status:404` 是兜底，未列出的 hostname 一律 404：
+
+注意：ingress 白名单限制的是「tunnel 转发到哪些本地服务」；共享 netns 的 cloudflared 技术上能访问本机任意端口，需要进程级限制时，把 cloudflared 跑成独立用户再用 iptables `--uid-owner` 规则。
 
 ## 其他容器复用
 
@@ -153,13 +181,13 @@ services:
 
 - **`/dev/net/tun` 不存在**：宿主机需要创建并挂载 `tun` 设备（`modprobe tun`），或确认 Docker 以 root 运行。
 - **想重新注册 Tailscale / Mesh**：删掉对应卷再重启：`docker compose down -v` 会清掉全部状态卷（慎用），或 `docker volume rm` 指定卷。
-- **cloudflared 出站走了代理**：这是设计行为（非 LAN/tailscale/mesh 的流量都走 mihomo）。若不想隧道依赖代理，把 [cloudflare.com/ips-v4](https://www.cloudflare.com/ips-v4) 的段加进 mihomo 配置的 DIRECT 规则（示例配置第 4 节有注释）。
-- **启动顺序**：entrypoint 先启动 mihomo 并等其 DNS（`127.0.0.1:53`）就绪，再拉起 mesh / tailscale / cloudflared，避免启动期域名解析失败；mihomo 配置里 Tailscale / Mesh 网段已 DIRECT，业务流量不经过代理。注意：这些组件的注册/登录等控制面流量属于“非排除网段”，会走 mihomo 出站，想让控制面直连就把 Cloudflare/Tailscale 公网段加进 DIRECT。
+- **cloudflared 出站走了代理**：这是设计行为（共享 netns 时非 LAN/tailscale/mesh 的流量都走 mihomo）。若不想隧道依赖代理，把 [cloudflare.com/ips-v4](https://www.cloudflare.com/ips-v4) 的段加进 mihomo 配置的 DIRECT 规则（示例配置第 4 节有注释）。
+- **启动顺序**：entrypoint 先启动 mihomo 并等其 DNS（`127.0.0.1:53`）就绪，再拉起 mesh / tailscale，避免启动期域名解析失败；mihomo 配置里 Tailscale / Mesh 网段已 DIRECT，业务流量不经过代理。注意：这些组件的注册/登录等控制面流量属于“非排除网段”，会走 mihomo 出站，想让控制面直连就把 Cloudflare/Tailscale 公网段加进 DIRECT。
 - **代理节点不通**：mihomo 配置里的 `example-proxy` 只是占位，替换成真实节点或订阅后重启 `net`。
 
 ## 自动重启
 
-任一核心进程（mihomo / tailscaled / warp-svc / cloudflared）退出时，容器随之退出，由 `restart: unless-stopped` 整体重启。Docker 对重启自带指数退避，不会高频硬重启。
+任一核心进程（mihomo / tailscaled / warp-svc）退出时，容器随之退出，由 `restart: unless-stopped` 整体重启。Docker 对重启自带指数退避，不会高频硬重启。
 
 ## 局域网固定 IP（macvlan）
 

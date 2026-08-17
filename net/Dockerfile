@@ -1,10 +1,12 @@
-FROM debian:bookworm-slim
+# 基础镜像仓库可用构建参数覆盖（如国内镜像源 / 私有仓库），
+# compose 里通过 build.args 传入，默认 docker.io
+ARG REGISTRY=docker.io
+FROM ${REGISTRY}/library/debian:bookworm-slim
 
 ARG TARGETARCH=amd64
 
 # 版本锁定，需要升级时改这里再重新 build
 ARG TAILSCALE_VERSION=1.102.2
-ARG CLOUDFLARED_VERSION=2026.7.2
 ARG MIHOMO_VERSION=v1.19.30
 ARG WARP_VERSION=2026.6.880.0
 
@@ -28,10 +30,6 @@ RUN curl -fsSL "https://pkgs.tailscale.com/stable/tailscale_${TAILSCALE_VERSION}
     && install -m 0755 "/tmp/tailscale_${TAILSCALE_VERSION}_${TARGETARCH}/tailscale" /usr/local/bin/tailscale \
     && install -m 0755 "/tmp/tailscale_${TAILSCALE_VERSION}_${TARGETARCH}/tailscaled" /usr/local/bin/tailscaled \
     && rm -rf /tmp/tailscale*
-
-# cloudflared（Cloudflare Tunnel）
-RUN curl -fsSL "https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-${TARGETARCH}" -o /usr/local/bin/cloudflared \
-    && chmod +x /usr/local/bin/cloudflared
 
 # mihomo（代理内核，TUN 模式）
 RUN curl -fsSL "https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/mihomo-linux-${TARGETARCH}-${MIHOMO_VERSION}.gz" -o /tmp/mihomo.gz \
