@@ -18,6 +18,9 @@ services:
       - .env
     environment:
       - TZ=${TZ:-UTC}
+    dns:
+      # 让 Docker 内置 DNS 的域名解析最终也走 mihomo（fake-ip）
+      - 127.0.0.1
     volumes:
       # mihomo 配置：直接编辑 net/mihomo/config.example.yaml，
       # 或复制为 net/mihomo/config.yaml 后改这里的挂载路径
