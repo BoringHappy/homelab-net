@@ -1,5 +1,5 @@
 services:
-  # 统一网络容器：mihomo + tailscale + cloudflare mesh + cloudflare tunnel
+  # 统一网络容器：mihomo + tailscale + cloudflare mesh
   # 共享同一个网络命名空间，其余容器用 network_mode: service:net 复用
   net:
     build:
@@ -31,11 +31,6 @@ services:
       # 持久化身份/状态（如需重新注册，删除对应卷即可）
       - ts-state:/var/lib/tailscale
       - warp-state:/var/lib/cloudflare-warp
-      - cfd-state:/etc/cloudflared
-      # 可选：本地管理模式的 cloudflared 配置（ingress 白名单），见 net/cloudflared/config.example.yml
-      # - ./net/cloudflared/config.yml:/etc/cloudflared/config.yml:ro
-      # 可选：容器内防火墙脚本（iptables），见 net/firewall.example.sh
-      # - ./net/firewall.sh:/etc/firewall.sh:ro
     ports:
       # mihomo mixed 代理端口（可选，给局域网设备用）
       - "7890:7890"
@@ -61,4 +56,3 @@ networks:
 volumes:
   ts-state:
   warp-state:
-  cfd-state:
