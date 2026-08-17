@@ -1,0 +1,24 @@
+name: validate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare env file
+        run: cp .env.example .env
+
+      - name: Validate compose files
+        run: |
+          for f in docker-compose*.yml; do
+            echo "==> $f"
+            docker compose -f "$f" config -q
+          done
+
+      - name: Shell syntax check
+        run: bash -n net/entrypoint.sh

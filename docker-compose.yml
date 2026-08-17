@@ -32,7 +32,8 @@ services:
       # mihomo 控制面板（可选）
       - "9090:9090"
     networks:
-      # 局域网固定 IP（网卡/网段/网关/IP 都在 .env 里配，网卡变了不用改 compose）
+      # 同时保留默认 bridge（端口发布/宿主机访问）和 macvlan（局域网固定 IP）
+      default: {}
       macvlan_net:
         ipv4_address: ${NET_IP:-192.168.5.50}
 

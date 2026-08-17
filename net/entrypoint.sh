@@ -96,11 +96,9 @@ if svc_enabled cloudflared; then
     if [ -n "${TUNNEL_TOKEN:-}" ]; then
         echo "[cloudflared] starting tunnel with TUNNEL_TOKEN"
         start cloudflared --no-autoupdate tunnel run --token "${TUNNEL_TOKEN}"
-        CLOUDFLARED_PID=$!
     elif [ -n "${TUNNEL_ID:-}" ] && [ -n "${TUNNEL_CRED_FILE:-}" ]; then
         echo "[cloudflared] starting tunnel ${TUNNEL_ID}"
         start cloudflared --no-autoupdate tunnel run --cred-file "${TUNNEL_CRED_FILE}" "${TUNNEL_ID}"
-        CLOUDFLARED_PID=$!
     else
         echo "[cloudflared] TUNNEL_TOKEN not set, skip"
     fi

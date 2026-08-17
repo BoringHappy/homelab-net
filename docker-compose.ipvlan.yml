@@ -36,6 +36,8 @@ services:
       - "7890:7890"
       - "9090:9090"
     networks:
+      # 同时保留默认 bridge（端口发布/宿主机访问）和 ipvlan（局域网固定 IP）
+      default: {}
       ipvlan_net:
         ipv4_address: ${NET_IP:-192.168.5.50}
 

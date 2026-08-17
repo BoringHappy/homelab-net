@@ -82,10 +82,15 @@ docker compose -f docker-compose.ipvlan.yml up -d --build
 注意事项：
 
 - macvlan / ipvlan 只在 **Linux 且宿主机网卡能直通**时可用，Docker Desktop（macOS/Windows）、WSL2、大部分云主机不支持，那种环境用 host-ip 模式。
-- macvlan / ipvlan 下，**宿主机自身无法直连容器 IP**（Linux 内核刻意隔离），宿主机访问容器走发布端口（两个文件里都保留了 `7890/9090`）。
+- macvlan / ipvlan 下，**宿主机自身无法直连容器 IP**（Linux 内核刻意隔离），宿主机访问走发布端口——两个文件都同时保留了默认 bridge 网络，端口发布才有效。
 - host 模式下 mihomo TUN 会接管宿主机默认路由，**整台机器的非 LAN 流量都会走代理**，只在你确实想要整机代理时用。
 - 4 个文件共用同一个 `container_name: unified-net`，同一台机器只能同时运行其中一个。
 - 局域网固定 IP 相关变量（`MACVLAN_PARENT` 等）只被 macvlan / ipvlan 文件使用，其余模式忽略。
+
+## 本地覆盖文件
+
+- `docker-compose.override.yml`：会被 `docker compose up` **自动合并**进 `docker-compose.yml`，适合放本机专属的端口/卷/网络调整（已 gitignore）。
+- `docker-compose.local.yml`：不会被自动加载，需要显式指定：`docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build`（已 gitignore）。
 
 ## 环境变量（.env）
 
@@ -156,7 +161,7 @@ services:
 
 ## 局域网固定 IP（macvlan）
 
-容器除了默认桥接网络，还会挂一个 macvlan 网络，从局域网拿到固定 IP。局域网设备可以直接访问容器，例如用 `192.168.5.50:7890` 作为代理，或把 `192.168.5.50` 当作 DNS 服务器。
+容器同时挂在默认桥接网络和 macvlan 网络上：桥接网络负责端口发布（宿主机通过 `宿主机IP:7890` 访问），macvlan 给容器一个固定 LAN IP（局域网设备直接访问 `192.168.5.50:7890` 使用代理）。
 
 网卡、网段、网关、固定 IP 全部在 `.env` 里配置：
 
@@ -173,4 +178,5 @@ services:
 - macvlan 的限制：**宿主机自己无法直接访问 macvlan 容器的 IP**（需要额外在宿主机建 macvlan 子接口），局域网其他设备不受影响。
 - 挂上 macvlan 后，LAN 网段是容器的本地接口子网，mihomo 的 `auto-route` 会保持直连，与配置里的 LAN DIRECT 规则一致。
 - 不需要局域网固定 IP 时，删掉 compose 里 `net` 服务的 `networks` 段和文件底部的 `networks` 定义即可。
-- 需要宿主机也能访问容器 IP 的场景，可以改用 `ipvlan`，但 macvlan 更通用。
+- 想从宿主机访问容器服务时走发布端口（`宿主机IP:7890` / `宿主机IP:9090`），或额外在宿主机上建 macvlan 子接口；ipvlan 同样隔离宿主机直连，不能解决这个问题。
+- mihomo 的 DNS（fake-ip 模式）只适合容器内部使用，**不要**让局域网设备把 `192.168.5.50:53` 当作 DNS 服务器，否则会拿到无法路由的 fake IP。
