@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local compose overrides (machine-specific)
+docker-compose.local.yml
+# docker-compose.override.yml 会被 `docker compose up` 自动合并加载
+docker-compose.override.yml

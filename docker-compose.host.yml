@@ -1,0 +1,42 @@
+# ============================================================
+# 部署模式：host 网络（共享宿主机网络命名空间）
+# 容器直接使用宿主机 IP 和全部端口，无 NAT、无端口映射。
+# 使用：docker compose -f docker-compose.host.yml up -d --build
+#
+# 重要：
+#   1. mihomo TUN + auto-route 会接管宿主机默认路由，
+#      整台机器的非 LAN 流量都会走代理 —— 即「整机透明代理网关」。
+#   2. tailscale / warp 的虚拟接口会直接建在宿主机上。
+#   3. 不要同时发布 ports（host 模式下会被忽略），sysctls 沿用宿主机。
+# ============================================================
+services:
+  net:
+    build:
+      context: ./net
+    container_name: unified-net
+    hostname: unified-net
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    env_file:
+      - .env
+    environment:
+      - TZ=${TZ:-UTC}
+    dns:
+      # 让 Docker 内置 DNS 的域名解析最终也走 mihomo（fake-ip）
+      - 127.0.0.1
+    volumes:
+      - ./mihomo/config.example.yaml:/etc/mihomo/config.yaml:ro
+      # 持久化身份/状态（如需重新注册，删除对应卷即可）
+      - ts-state:/var/lib/tailscale
+      - warp-state:/var/lib/cloudflare-warp
+      - cfd-state:/etc/cloudflared
+
+volumes:
+  ts-state:
+  warp-state:
+  cfd-state:

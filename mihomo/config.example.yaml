@@ -1,0 +1,98 @@
+# ============================================================
+# mihomo 示例配置（Unified Container Network）
+#
+# 行为说明：
+#   1. LAN / Tailscale / Cloudflare Mesh 目标地址一律 DIRECT，不经代理
+#   2. 其余流量（非 LAN/tailscale/mesh/tunnel 的目标）走 PROXY 出站
+#   3. 入站流量（tailscale/mesh/tunnel 的入站连接）由内核本地投递，
+#      不经过 tun0，因此不会被 mihomo 劫持（strict-route 保持 false）
+#
+# 使用前把 proxies 替换成你自己的节点或订阅
+# ============================================================
+
+mixed-port: 7890
+allow-lan: true
+bind-address: "*"
+mode: rule
+log-level: info
+ipv6: false
+
+# 控制面板/外部 API（compose 已发布 9090 端口）
+external-controller: 0.0.0.0:9090
+# secret: ""   # 可选：给外部控制器加访问密码
+
+# TUN 模式：接管本网络命名空间内的默认路由，
+# 同 netns 的业务容器自动继承这套策略路由
+tun:
+  enable: true
+  stack: system
+  auto-route: true
+  auto-redirect: false
+  strict-route: false
+  # 类似 Surge 的 bypass-tun：这些网段的流量不进入 tun0，直接走内核路由。
+  # tailscale(100.64/10) / mesh(100.96/12) 已有独立内核路由，这里显式声明更保险
+  route-exclude-address:
+    - 192.168.0.0/16
+    - 172.16.0.0/12
+    - 10.0.0.0/8
+    - 100.64.0.0/10
+    - 100.96.0.0/12
+  # 备选方案：按网卡名排除（与 route-exclude-address 二选一即可）
+  # 适合不方便写网段、或想整卡排除的场景；
+  # 网卡名随系统/模式而异：Linux 下 tailscale 一般是 tailscale0、
+  # warp 是 CloudflareWARP，macOS 下则多为 utun 开头
+  # exclude-interface:
+  #   - tailscale0
+  #   - CloudflareWARP
+  dns-hijack:
+    - any:53
+
+dns:
+  enable: true
+  listen: 0.0.0.0:53
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  default-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  nameserver:
+    - https://dns.alidns.com/dns-query
+    - https://1.1.1.1/dns-query
+
+proxies:
+  # TODO: 替换成你自己的代理节点，或使用订阅转换/机场配置
+  - name: "example-proxy"
+    type: socks5
+    server: 127.0.0.1
+    port: 1080
+  - name: "DIRECT"
+    type: direct
+
+proxy-groups:
+  - name: "PROXY"
+    type: select
+    proxies:
+      - example-proxy
+      - DIRECT
+
+rules:
+  # 1) 局域网直连（LAN）
+  - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
+  - IP-CIDR,172.16.0.0/12,DIRECT,no-resolve
+  - IP-CIDR,10.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,169.254.0.0/16,DIRECT,no-resolve
+
+  # 2) Tailscale（CGNAT 段）直连，不走 mihomo
+  - IP-CIDR,100.64.0.0/10,DIRECT,no-resolve
+
+  # 3) Cloudflare Mesh / WARP 设备段直连，不走 mihomo
+  - IP-CIDR,100.96.0.0/12,DIRECT,no-resolve
+
+  # 4) （可选）Cloudflare Tunnel 边缘节点直连：
+  #    cloudflared 是主动出站连 Cloudflare 边缘，默认会走 PROXY。
+  #    若想让隧道不依赖代理，把 cloudflare.com/ips-v4 的段加到这里
+  # - IP-CIDR,198.41.192.0/18,DIRECT,no-resolve
+  # - IP-CIDR,173.245.48.0/20,DIRECT,no-resolve
+
+  # 5) 其余流量走代理
+  - MATCH,PROXY
