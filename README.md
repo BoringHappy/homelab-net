@@ -153,6 +153,7 @@ services:
 - **`/dev/net/tun` 不存在**：宿主机需要创建并挂载 `tun` 设备（`modprobe tun`），或确认 Docker 以 root 运行。
 - **想重新注册 Tailscale / Mesh**：删掉对应卷再重启：`docker compose down -v` 会清掉全部状态卷（慎用），或 `docker volume rm` 指定卷。
 - **cloudflared 出站走了代理**：这是设计行为（非 LAN/tailscale/mesh 的流量都走 mihomo）。若不想隧道依赖代理，把 [cloudflare.com/ips-v4](https://www.cloudflare.com/ips-v4) 的段加进 mihomo 配置的 DIRECT 规则（示例配置第 4 节有注释）。
+- **启动顺序**：entrypoint 先启动 mihomo 并等其 DNS（`127.0.0.1:53`）就绪，再拉起 mesh / tailscale / cloudflared，避免启动期域名解析失败；mihomo 配置里 Tailscale / Mesh 网段已 DIRECT，业务流量不经过代理。注意：这些组件的注册/登录等控制面流量属于“非排除网段”，会走 mihomo 出站，想让控制面直连就把 Cloudflare/Tailscale 公网段加进 DIRECT。
 - **代理节点不通**：mihomo 配置里的 `example-proxy` 只是占位，替换成真实节点或订阅后重启 `net`。
 
 ## 自动重启
