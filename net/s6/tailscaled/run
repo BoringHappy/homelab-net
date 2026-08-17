@@ -1,0 +1,5 @@
+#!/bin/sh
+# Tailscale 守护进程（内核态 TUN，节点状态持久化在 /var/lib/tailscale）
+exec tailscaled \
+    --state=/var/lib/tailscale/tailscaled.state \
+    --socket=/var/run/tailscale/tailscaled.sock

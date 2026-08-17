@@ -1,0 +1,14 @@
+#!/bin/sh
+# cloudflared 隧道：优先用 token，其次用凭据文件
+if [ -n "${TUNNEL_TOKEN:-}" ]; then
+    echo "[cloudflared] 使用 TUNNEL_TOKEN 启动隧道"
+    exec cloudflared --no-autoupdate tunnel run --token "${TUNNEL_TOKEN}"
+fi
+
+if [ -n "${TUNNEL_ID:-}" ] && [ -n "${TUNNEL_CRED_FILE:-}" ]; then
+    echo "[cloudflared] 使用凭据文件启动隧道 ${TUNNEL_ID}"
+    exec cloudflared --no-autoupdate tunnel run --cred-file "${TUNNEL_CRED_FILE}" "${TUNNEL_ID}"
+fi
+
+echo "[cloudflared] 未设置 TUNNEL_TOKEN（或 TUNNEL_ID + TUNNEL_CRED_FILE），跳过隧道"
+exec sleep infinity

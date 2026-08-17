@@ -1,0 +1,29 @@
+#!/bin/sh
+# 等待 tailscaled 就绪后自动登录
+SOCK=/var/run/tailscale/tailscaled.sock
+i=0
+while [ ! -S "${SOCK}" ]; do
+    i=$((i + 1))
+    [ "$i" -ge 30 ] && break
+    sleep 1
+done
+
+if tailscale --socket="${SOCK}" status >/dev/null 2>&1; then
+    echo "[tailscale] 已登录，跳过"
+    exit 0
+fi
+
+if [ -z "${TS_AUTHKEY:-}" ]; then
+    echo "[tailscale] TS_AUTHKEY 未设置，跳过登录"
+    exit 0
+fi
+
+ARGS="--authkey=${TS_AUTHKEY}"
+if [ -n "${TS_HOSTNAME:-}" ]; then
+    ARGS="${ARGS} --hostname=${TS_HOSTNAME}"
+fi
+
+# shellcheck disable=SC2086
+tailscale --socket="${SOCK}" up ${ARGS} ${TS_EXTRA_ARGS:-} \
+    || echo "[tailscale] up 失败，请查看 tailscaled 日志"
+exit 0

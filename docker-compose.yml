@@ -1,0 +1,48 @@
+services:
+  # 统一网络容器：mihomo + tailscale + cloudflare mesh + cloudflare tunnel
+  # 共享同一个网络命名空间，其余容器用 network_mode: service:net 复用
+  net:
+    build:
+      context: ./net
+    container_name: unified-net
+    hostname: unified-net
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    sysctls:
+      - net.ipv4.ip_forward=1
+    env_file:
+      - .env
+    environment:
+      - TZ=${TZ:-UTC}
+    volumes:
+      # mihomo 配置：直接编辑 net/mihomo/config.example.yaml，
+      # 或复制为 net/mihomo/config.yaml 后改这里的挂载路径
+      - ./net/mihomo/config.example.yaml:/etc/mihomo/config.yaml:ro
+      # 持久化身份/状态（如需重新注册，删除对应卷即可）
+      - ts-state:/var/lib/tailscale
+      - warp-state:/var/lib/cloudflare-warp
+      - cfd-state:/etc/cloudflared
+    ports:
+      # mihomo mixed 代理端口（可选，给局域网设备用）
+      - "7890:7890"
+      # mihomo 控制面板（可选）
+      - "9090:9090"
+
+  # 示例业务容器：共享 net 的网络命名空间，
+  # 出站自动按 mihomo 策略路由，入站自动经 tailscale/mesh/tunnel
+  app-example:
+    image: alpine:3
+    restart: unless-stopped
+    network_mode: service:net
+    depends_on:
+      - net
+    command: ["sleep", "infinity"]
+
+volumes:
+  ts-state:
+  warp-state:
+  cfd-state:
