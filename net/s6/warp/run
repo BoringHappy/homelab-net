@@ -1,3 +1,0 @@
-#!/bin/sh
-# Cloudflare One Client 守护进程（Mesh 节点）
-exec warp-svc

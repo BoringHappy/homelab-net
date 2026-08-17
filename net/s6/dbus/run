@@ -1,4 +1,0 @@
-#!/bin/sh
-# warp-svc 依赖 system dbus
-mkdir -p /run/dbus
-exec dbus-daemon --system --nofork --nopidfile

@@ -1,3 +1,0 @@
-#!/bin/sh
-# mihomo TUN 模式：接管默认路由，按 rules 分流（LAN/tailscale/mesh 直连，其余代理）
-exec mihomo -d /etc/mihomo

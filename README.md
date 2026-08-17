@@ -4,12 +4,14 @@
 
 ## 架构
 
-一个 `net` 容器（s6-overlay 同时拉起 4 个进程）持有唯一的网络命名空间：
+一个 `net` 容器持有唯一的网络命名空间，入口脚本同时拉起 4 个进程：
 
 - **mihomo** 以 TUN 模式接管默认路由，按目标地址分流：
   - LAN、Tailscale（`100.64.0.0/10`）、Cloudflare Mesh/WARP（`100.96.0.0/12`）→ DIRECT，不经代理
   - 其余流量 → 走代理出站
 - **入站流量天然不经过 mihomo**：进入容器自身 IP 的包由内核本地投递，不会进入 tun0（`strict-route: false`）。Tailscale / Mesh / Tunnel 的入站连接直接到达对应服务。
+
+任一进程退出时容器整体退出，由 Docker 的 `restart` 策略整机拉起。
 
 其他容器通过 `network_mode: service:net` 复用整个网络，出站自动按上述策略路由，入站自动经 Tailscale / Mesh / Tunnel 暴露。
 
@@ -20,11 +22,10 @@
 ├── docker-compose.yml              # net 容器 + 示例业务容器
 ├── .env.example                    # 各服务认证信息模板（复制为 .env）
 └── net/
-    ├── Dockerfile                  # 单镜像：s6-overlay + 4 个网络组件
+    ├── Dockerfile                  # 单镜像：4 个网络组件
+    ├── entrypoint.sh               # 启动脚本：同时拉起全部进程
     ├── mihomo/
     │   └── config.example.yaml     # mihomo 分流配置（挂载为 /etc/mihomo/config.yaml）
-    ├── s6/                         # s6 服务定义（dbus/warp/tailscaled/mihomo/cloudflared）
-    └── user-bundles.d/             # 开机启动的服务清单
 ```
 
 ## 快速开始
