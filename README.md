@@ -35,7 +35,7 @@
 - `.env`：`cp .env.example .env` 后填写 `TS_AUTHKEY` / `TUNNEL_TOKEN` / `MESH_NODE_TOKEN`，并按需调整 macvlan 网卡（`MACVLAN_PARENT`）和固定 IP（`NET_IP`）
 - `net/mihomo/config.example.yaml`：把示例的 `example-proxy` 替换成你自己的代理节点
 
-之后一条命令完成构建和启动：
+默认使用 macvlan 模式（`docker-compose.yml`），之后一条命令完成构建和启动：
 
 ```bash
 cp .env.example .env && docker compose up -d --build
@@ -51,6 +51,41 @@ docker exec unified-net tailscale status   # Tailscale 状态
 docker exec unified-net warp-cli status    # Cloudflare Mesh 状态
 docker exec unified-net curl -x http://127.0.0.1:7890 https://www.gstatic.com/generate_204   # 代理连通性
 ```
+
+其他部署模式见下文，用法相同，只是加 `-f` 指定文件。
+
+## 部署模式选择
+
+仓库提供了 4 个 compose 文件，按你的网络环境选一个：
+
+| 模式 | 文件 | 容器网络 | 局域网访问方式 | 适用场景 |
+| --- | --- | --- | --- | --- |
+| macvlan（默认） | `docker-compose.yml` | macvlan，固定 LAN IP | 局域网设备直连容器 IP | 容器要有独立 LAN IP |
+| 宿主机 IP | `docker-compose.host-ip.yml` | 默认 bridge + 端口映射 | `宿主机IP:7890` 等 | 简单省事，不想折腾网络 |
+| host 网络 | `docker-compose.host.yml` | 共享宿主机网络命名空间 | 宿主机 IP 全端口 | 整机透明代理网关 |
+| ipvlan L2 | `docker-compose.ipvlan.yml` | ipvlan，固定 LAN IP | 局域网设备直连容器 IP | 上游网络限制 MAC 数量 |
+
+```bash
+# macvlan（默认）
+docker compose up -d --build
+
+# 宿主机 IP
+docker compose -f docker-compose.host-ip.yml up -d --build
+
+# host 网络（整机代理网关，注意影响全宿主机的路由）
+docker compose -f docker-compose.host.yml up -d --build
+
+# ipvlan
+docker compose -f docker-compose.ipvlan.yml up -d --build
+```
+
+注意事项：
+
+- macvlan / ipvlan 只在 **Linux 且宿主机网卡能直通**时可用，Docker Desktop（macOS/Windows）、WSL2、大部分云主机不支持，那种环境用 host-ip 模式。
+- macvlan / ipvlan 下，**宿主机自身无法直连容器 IP**（Linux 内核刻意隔离），宿主机访问容器走发布端口（两个文件里都保留了 `7890/9090`）。
+- host 模式下 mihomo TUN 会接管宿主机默认路由，**整台机器的非 LAN 流量都会走代理**，只在你确实想要整机代理时用。
+- 4 个文件共用同一个 `container_name: unified-net`，同一台机器只能同时运行其中一个。
+- 局域网固定 IP 相关变量（`MACVLAN_PARENT` 等）只被 macvlan / ipvlan 文件使用，其余模式忽略。
 
 ## 环境变量（.env）
 
