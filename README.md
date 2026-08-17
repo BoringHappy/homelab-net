@@ -55,9 +55,22 @@ docker compose logs -f net
 | `TUNNEL_TOKEN` | Cloudflare Tunnel | 隧道 token（优先于凭据文件方式） |
 | `TUNNEL_ID` / `TUNNEL_CRED_FILE` | Cloudflare Tunnel | 可选，凭据文件方式（文件放在 `cfd-state` 卷或挂载目录） |
 | `MESH_NODE_TOKEN` | Cloudflare Mesh | Mesh 节点 token，控制台 *Networking → Mesh → Add a node* |
+| `SERVICES` | 服务选择 | 逗号分隔，可选 `mihomo` / `tailscale` / `mesh` / `cloudflared`，默认全部启动 |
 | `TZ` | 通用 | 时区 |
 
 `.env` 已被 `.gitignore` 忽略，不会提交到仓库。
+
+### 选择性启动
+
+不需要某个组件时，在 `.env` 里用 `SERVICES` 指定即可，未启用的组件不会启动：
+
+```bash
+SERVICES=mihomo,tailscale        # 只要代理 + tailscale
+SERVICES=mesh,cloudflared        # 只要 mesh + 隧道
+SERVICES=mihomo                  # 只做透明代理网关
+```
+
+注意：`dbus` 会随 `mesh` 自动启停，不需要单独配置。
 
 ## 挂载与持久化
 
@@ -94,3 +107,7 @@ services:
 - **想重新注册 Tailscale / Mesh**：删掉对应卷再重启：`docker compose down -v` 会清掉全部状态卷（慎用），或 `docker volume rm` 指定卷。
 - **cloudflared 出站走了代理**：这是设计行为（非 LAN/tailscale/mesh 的流量都走 mihomo）。若不想隧道依赖代理，把 [cloudflare.com/ips-v4](https://www.cloudflare.com/ips-v4) 的段加进 mihomo 配置的 DIRECT 规则（示例配置第 4 节有注释）。
 - **代理节点不通**：mihomo 配置里的 `example-proxy` 只是占位，替换成真实节点或订阅后重启 `net`。
+
+## 自动重启
+
+任一核心进程（mihomo / tailscaled / warp-svc / cloudflared）退出时，容器随之退出，由 `restart: unless-stopped` 整体重启。Docker 对重启自带指数退避，不会高频硬重启。

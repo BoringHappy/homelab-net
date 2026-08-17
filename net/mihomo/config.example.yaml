@@ -17,6 +17,10 @@ mode: rule
 log-level: info
 ipv6: false
 
+# 控制面板/外部 API（compose 已发布 9090 端口）
+external-controller: 0.0.0.0:9090
+# secret: ""   # 可选：给外部控制器加访问密码
+
 # TUN 模式：接管本网络命名空间内的默认路由，
 # 同 netns 的业务容器自动继承这套策略路由
 tun:
