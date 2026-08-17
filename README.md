@@ -30,19 +30,26 @@
 
 ## 快速开始
 
+首次使用前，先编辑两个文件：
+
+- `.env`：`cp .env.example .env` 后填写 `TS_AUTHKEY` / `TUNNEL_TOKEN` / `MESH_NODE_TOKEN`，并按需调整 macvlan 网卡（`MACVLAN_PARENT`）和固定 IP（`NET_IP`）
+- `net/mihomo/config.example.yaml`：把示例的 `example-proxy` 替换成你自己的代理节点
+
+之后一条命令完成构建和启动：
+
 ```bash
-# 1. 准备环境变量（填写各服务的认证 token）
-cp .env.example .env
-vi .env
+cp .env.example .env && docker compose up -d --build
+```
 
-# 2. 把 mihomo 配置里的 example-proxy 替换成你自己的代理节点
-vi net/mihomo/config.example.yaml
+启动后验证：
 
-# 3. 构建并启动
-docker compose up -d --build
-
-# 4. 查看状态
-docker compose logs -f net
+```bash
+docker compose ps                          # 容器状态
+docker compose logs -f net                 # 滚动查看启动日志
+docker exec unified-net ip addr            # 查看 macvlan 固定 IP
+docker exec unified-net tailscale status   # Tailscale 状态
+docker exec unified-net warp-cli status    # Cloudflare Mesh 状态
+docker exec unified-net curl -x http://127.0.0.1:7890 https://www.gstatic.com/generate_204   # 代理连通性
 ```
 
 ## 环境变量（.env）
