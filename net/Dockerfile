@@ -46,8 +46,7 @@ RUN curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg -o /usr/share/keyring
     && apt-get install -y --no-install-recommends cloudflare-warp=${WARP_VERSION} \
     && rm -rf /var/lib/apt/lists/*
 
-# 默认 mihomo 配置（compose 会用卷挂载覆盖）
-COPY mihomo/config.example.yaml /etc/mihomo/config.yaml
+# mihomo 配置不编译进镜像，由 compose 挂载到 /etc/mihomo/config.yaml
 
 # 启动脚本：同时拉起全部进程，任一进程退出则容器退出并整体重启
 COPY entrypoint.sh /entrypoint.sh

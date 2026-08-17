@@ -25,8 +25,8 @@ services:
       # 让 Docker 内置 DNS 的域名解析最终也走 mihomo（fake-ip）
       - 127.0.0.1
     volumes:
-      # mihomo 配置：直接编辑 net/mihomo/config.example.yaml
-      - ./net/mihomo/config.example.yaml:/etc/mihomo/config.yaml:ro
+      # mihomo 配置：直接编辑 mihomo/config.example.yaml
+      - ./mihomo/config.example.yaml:/etc/mihomo/config.yaml:ro
       # 持久化身份/状态（如需重新注册，删除对应卷即可）
       - ts-state:/var/lib/tailscale
       - warp-state:/var/lib/cloudflare-warp

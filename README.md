@@ -21,11 +21,11 @@
 .
 ├── docker-compose.yml              # net 容器 + 示例业务容器
 ├── .env.example                    # 各服务认证信息模板（复制为 .env）
+├── mihomo/
+│   └── config.example.yaml         # mihomo 分流配置（挂载为 /etc/mihomo/config.yaml）
 └── net/
     ├── Dockerfile                  # 单镜像：4 个网络组件
     ├── entrypoint.sh               # 启动脚本：同时拉起全部进程
-    ├── mihomo/
-    │   └── config.example.yaml     # mihomo 分流配置（挂载为 /etc/mihomo/config.yaml）
 ```
 
 ## 快速开始
@@ -33,7 +33,7 @@
 首次使用前，先编辑两个文件：
 
 - `.env`：`cp .env.example .env` 后填写 `TS_AUTHKEY` / `TUNNEL_TOKEN` / `MESH_NODE_TOKEN`，并按需调整 macvlan 网卡（`MACVLAN_PARENT`）和固定 IP（`NET_IP`）
-- `net/mihomo/config.example.yaml`：把示例的 `example-proxy` 替换成你自己的代理节点
+- `mihomo/config.example.yaml`：把示例的 `example-proxy` 替换成你自己的代理节点
 
 默认使用 macvlan 模式（`docker-compose.yml`），之后一条命令完成构建和启动：
 
@@ -124,7 +124,7 @@ SERVICES=mihomo                  # 只做透明代理网关
 
 | 挂载 | 容器路径 | 作用 |
 | --- | --- | --- |
-| `./net/mihomo/config.example.yaml` | `/etc/mihomo/config.yaml` | mihomo 配置 |
+| `./mihomo/config.example.yaml` | `/etc/mihomo/config.yaml` | mihomo 配置 |
 | `ts-state` 卷 | `/var/lib/tailscale` | Tailscale 节点身份，删除卷 = 重新登录 |
 | `warp-state` 卷 | `/var/lib/cloudflare-warp` | Mesh 注册状态，删除卷 = 重新注册 |
 | `cfd-state` 卷 | `/etc/cloudflared` | cloudflared 凭据文件目录 |
