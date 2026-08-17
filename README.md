@@ -97,6 +97,7 @@ docker compose -f docker-compose.ipvlan.yml up -d --build
 | 变量 | 服务 | 说明 |
 | --- | --- | --- |
 | `TS_AUTHKEY` | Tailscale | 登录密钥，[管理后台](https://login.tailscale.com/admin/settings/keys)生成 |
+| `TS_AUTH_SERVER` | Tailscale | 可选，自定义控制服务器（如 Headscale），默认空 = 官方控制平面 |
 | `TS_HOSTNAME` | Tailscale | 可选，节点名 |
 | `TS_EXTRA_ARGS` | Tailscale | 可选，`tailscale up` 附加参数，如 `--advertise-routes=192.168.1.0/24` |
 | `TUNNEL_TOKEN` | Cloudflare Tunnel | 隧道 token（优先于凭据文件方式） |

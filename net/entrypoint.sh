@@ -96,6 +96,7 @@ if svc_enabled tailscale; then
         echo "[tailscale] logging in"
         tailscale --socket="${SOCK}" up \
             --authkey="${TS_AUTHKEY}" \
+            ${TS_AUTH_SERVER:+--login-server="${TS_AUTH_SERVER}"} \
             ${TS_HOSTNAME:+--hostname="${TS_HOSTNAME}"} \
             ${TS_EXTRA_ARGS:-} \
             || echo "[tailscale] up failed, check tailscaled logs"
