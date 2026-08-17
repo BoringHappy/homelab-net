@@ -103,6 +103,7 @@ docker compose -f docker-compose.ipvlan.yml up -d --build
 | `TS_EXTRA_ARGS` | Tailscale | 可选，`tailscale up` 附加参数，如 `--advertise-routes=192.168.1.0/24` |
 | `MESH_NODE_TOKEN` | Cloudflare Mesh | Mesh 节点 token，控制台 *Networking → Mesh → Add a node* |
 | `SERVICES` | 服务选择 | 逗号分隔，可选 `mihomo` / `tailscale` / `mesh`，默认全部启动 |
+| `CHROMIUM_PORT` | Chromium | 可选，Chromium Web 界面映射到宿主机的端口，默认 `18000`（容器内固定监听 3000） |
 | `TZ` | 通用 | 时区 |
 
 `.env` 已被 `.gitignore` 忽略，不会提交到仓库。
