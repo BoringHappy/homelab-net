@@ -37,6 +37,13 @@ tun:
     - 10.0.0.0/8
     - 100.64.0.0/10
     - 100.96.0.0/12
+  # 备选方案：按网卡名排除（与 route-exclude-address 二选一即可）
+  # 适合不方便写网段、或想整卡排除的场景；
+  # 网卡名随系统/模式而异：Linux 下 tailscale 一般是 tailscale0、
+  # warp 是 CloudflareWARP，macOS 下则多为 utun 开头
+  # exclude-interface:
+  #   - tailscale0
+  #   - CloudflareWARP
   dns-hijack:
     - any:53
 
