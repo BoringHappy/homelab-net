@@ -13,6 +13,9 @@ services:
   net:
     build:
       context: ./net
+      args:
+        # 基础镜像仓库，可用 .env 的 REGISTRY 覆盖（如国内镜像源）
+        REGISTRY: ${REGISTRY:-docker.io}
     container_name: unified-net
     hostname: unified-net
     restart: unless-stopped
@@ -35,6 +38,10 @@ services:
       - ts-state:/var/lib/tailscale
       - warp-state:/var/lib/cloudflare-warp
       - cfd-state:/etc/cloudflared
+      # 可选：本地管理模式的 cloudflared 配置（ingress 白名单），见 net/cloudflared/config.example.yml
+      # - ./net/cloudflared/config.yml:/etc/cloudflared/config.yml:ro
+      # 可选：容器内防火墙脚本（iptables），见 net/firewall.example.sh
+      # - ./net/firewall.sh:/etc/firewall.sh:ro
 
 volumes:
   ts-state:

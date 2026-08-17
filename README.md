@@ -24,8 +24,11 @@
 ├── mihomo/
 │   └── config.example.yaml         # mihomo 分流配置（挂载为 /etc/mihomo/config.yaml）
 └── net/
-    ├── Dockerfile                  # 单镜像：4 个网络组件
+    ├── Dockerfile                  # 单镜像：4 个网络组件（基础镜像仓库可用 REGISTRY 覆盖）
     ├── entrypoint.sh               # 启动脚本：同时拉起全部进程
+    ├── cloudflared/
+    │   └── config.example.yml      # tunnel ingress 白名单配置示例（本地管理模式）
+    └── firewall.example.sh         # 容器内防火墙（iptables）示例脚本
 ```
 
 ## 快速开始
@@ -96,14 +99,17 @@ docker compose -f docker-compose.ipvlan.yml up -d --build
 
 | 变量 | 服务 | 说明 |
 | --- | --- | --- |
+| `REGISTRY` | 构建 | 基础镜像仓库，默认 `docker.io`，可换成镜像源/私有仓库 |
 | `TS_AUTHKEY` | Tailscale | 登录密钥，[管理后台](https://login.tailscale.com/admin/settings/keys)生成 |
 | `TS_AUTH_SERVER` | Tailscale | 可选，自定义控制服务器（如 Headscale），默认空 = 官方控制平面 |
 | `TS_HOSTNAME` | Tailscale | 可选，节点名 |
 | `TS_EXTRA_ARGS` | Tailscale | 可选，`tailscale up` 附加参数，如 `--advertise-routes=192.168.1.0/24` |
 | `TUNNEL_TOKEN` | Cloudflare Tunnel | 隧道 token（优先于凭据文件方式） |
 | `TUNNEL_ID` / `TUNNEL_CRED_FILE` | Cloudflare Tunnel | 可选，凭据文件方式（文件放在 `cfd-state` 卷或挂载目录） |
+| `TUNNEL_CONFIG` | Cloudflare Tunnel | 可选，本地管理模式的 ingress 白名单配置（见下文「限制 Tunnel」一节） |
 | `MESH_NODE_TOKEN` | Cloudflare Mesh | Mesh 节点 token，控制台 *Networking → Mesh → Add a node* |
 | `SERVICES` | 服务选择 | 逗号分隔，可选 `mihomo` / `tailscale` / `mesh` / `cloudflared`，默认全部启动 |
+| `LAN_SUBNET` | 防火墙 | 可选，容器内防火墙示例脚本使用的局域网网段 |
 | `TZ` | 通用 | 时区 |
 
 `.env` 已被 `.gitignore` 忽略，不会提交到仓库。
@@ -125,9 +131,60 @@ SERVICES=mihomo                  # 只做透明代理网关
 | 挂载 | 容器路径 | 作用 |
 | --- | --- | --- |
 | `./mihomo/config.example.yaml` | `/etc/mihomo/config.yaml` | mihomo 配置 |
+| `./net/cloudflared/config.yml`（可选） | `/etc/cloudflared/config.yml` | tunnel ingress 白名单（本地管理模式，默认注释） |
+| `./net/firewall.sh`（可选） | `/etc/firewall.sh` | 容器内防火墙脚本，entrypoint 在启动服务前执行（默认注释） |
 | `ts-state` 卷 | `/var/lib/tailscale` | Tailscale 节点身份，删除卷 = 重新登录 |
 | `warp-state` 卷 | `/var/lib/cloudflare-warp` | Mesh 注册状态，删除卷 = 重新注册 |
 | `cfd-state` 卷 | `/etc/cloudflared` | cloudflared 凭据文件目录 |
+
+## 限制 Cloudflare Tunnel 只转发部分服务
+
+Tunnel 只能转发你明确列出的服务，做法取决于启动方式：
+
+**方式一：token 模式（`TUNNEL_TOKEN`）**
+
+隧道配置在 Cloudflare 控制台管理：*Zero Trust → Networks → Tunnels → 你的隧道 → Public Hostnames*。在那里只添加你想暴露的域名，并指向对应的本地服务（如 `http://localhost:8080`）。没有添加的域名不会有入口规则，tunnel 不会转发它们。
+
+**方式二：凭据文件模式（`TUNNEL_ID` + `TUNNEL_CRED_FILE`）**
+
+用本地配置文件定义 ingress 白名单：
+
+```yaml
+ingress:
+  - hostname: app.example.com
+    service: http://localhost:8080
+  - hostname: dashboard.example.com
+    service: http://127.0.0.1:3000
+  - service: http_status:404   # 兜底：未列出的 hostname 一律 404
+```
+
+配置从上往下匹配，命中即停止；最后一条不写 `hostname` 的 `http_status:404` 是兜底，未显式列出的请求全部被拒。完整示例见 [net/cloudflared/config.example.yml](net/cloudflared/config.example.yml)。
+
+启用步骤：
+
+1. `cp net/cloudflared/config.example.yml net/cloudflared/config.yml`，改成你自己的 tunnel id 和服务地址
+2. 在 compose 的 `volumes` 里取消注释 `./net/cloudflared/config.yml:/etc/cloudflared/config.yml:ro`
+3. `.env` 里设置 `TUNNEL_CONFIG=/etc/cloudflared/config.yml`（并保留 `TUNNEL_ID` / `TUNNEL_CRED_FILE`）
+
+补充：ingress 白名单限制的是「tunnel 转发到哪些本地服务」。所有服务共享同一个网络命名空间，cloudflared 本身能访问本机任意端口；如果想要进程级的纵深防御，把 cloudflared 改成独立用户运行，再用 iptables 的 `--uid-owner` 规则限制它只能连接指定端口（见下文的防火墙示例）。
+
+## 容器内防火墙（iptables，不是 ufw）
+
+容器里**不要用 ufw**：它是面向宿主机的 iptables 前端，依赖 systemd / 网络管理器，默认策略也是按宿主机场景设计的，放进容器基本不可用。本容器已经安装了 `iptables` 并带有 `NET_ADMIN` / `NET_RAW` 权限，直接写 iptables 规则即可（Debian 12 的 `iptables` 是 nft 后端）。
+
+仓库提供 [net/firewall.example.sh](net/firewall.example.sh)：把脚本挂载到 `/etc/firewall.sh`，entrypoint 会在启动各服务之前执行它。示例包含：
+
+- 幂等初始化：只清自定义链，不动 mihomo / Docker 的链
+- 局域网网段（macvlan/ipvlan）只放行 mihomo 的 7890/9090，其余拒绝
+- 注释掉的 OUTPUT 限制示例（进程级限制需要先让 cloudflared 跑在独立用户下）
+
+启用步骤：
+
+1. `cp net/firewall.example.sh net/firewall.sh`，按需改规则
+2. 在 compose 的 `volumes` 里取消注释 `./net/firewall.sh:/etc/firewall.sh:ro`
+3. 重启 net 容器
+
+注意：其他业务容器通过 `network_mode: service:net` 共享本容器的网络命名空间，防火墙规则会影响它们；host 模式下还会影响宿主机本身（`iptables` 操作的是宿主机的表），务必小心。
 
 ## 其他容器复用
 

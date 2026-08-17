@@ -1,4 +1,7 @@
-FROM debian:bookworm-slim
+# 基础镜像仓库可用构建参数覆盖（如国内镜像源 / 私有仓库），
+# compose 里通过 build.args 传入，默认 docker.io
+ARG REGISTRY=docker.io
+FROM ${REGISTRY}/library/debian:bookworm-slim
 
 ARG TARGETARCH=amd64
 

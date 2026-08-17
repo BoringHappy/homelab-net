@@ -36,6 +36,21 @@ svc_enabled() {
 
 echo "[init] services: ${SERVICES}"
 
+# ---------- 防火墙（可选） ----------
+# 挂载了 /etc/firewall.sh（见 net/firewall.example.sh）时，在启动服务前应用规则。
+# 容器内请直接用 iptables/nftables，不要用 ufw（ufw 面向宿主机，依赖 systemd，
+# 且其默认策略设计不适合容器网络命名空间）。
+if [ -f /etc/firewall.sh ]; then
+    echo "[firewall] applying /etc/firewall.sh"
+    if bash /etc/firewall.sh; then
+        echo "[firewall] rules applied"
+    else
+        echo "[firewall] script failed, continuing without firewall rules"
+    fi
+else
+    echo "[firewall] /etc/firewall.sh not present, skip"
+fi
+
 # ---------- dbus（仅 mesh 需要） ----------
 if svc_enabled mesh; then
     mkdir -p /run/dbus
@@ -114,7 +129,12 @@ if svc_enabled cloudflared; then
         start cloudflared --no-autoupdate tunnel run --token "${TUNNEL_TOKEN}"
     elif [ -n "${TUNNEL_ID:-}" ] && [ -n "${TUNNEL_CRED_FILE:-}" ]; then
         echo "[cloudflared] starting tunnel ${TUNNEL_ID}"
-        start cloudflared --no-autoupdate tunnel run --cred-file "${TUNNEL_CRED_FILE}" "${TUNNEL_ID}"
+        CMD=(cloudflared --no-autoupdate tunnel)
+        if [ -n "${TUNNEL_CONFIG:-}" ]; then
+            echo "[cloudflared] using config: ${TUNNEL_CONFIG}"
+            CMD+=(--config "${TUNNEL_CONFIG}")
+        fi
+        start "${CMD[@]}" run --cred-file "${TUNNEL_CRED_FILE}" "${TUNNEL_ID}"
     else
         echo "[cloudflared] TUNNEL_TOKEN not set, skip"
     fi

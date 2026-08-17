@@ -1,0 +1,35 @@
+# ============================================================
+# cloudflared 本地管理模式配置示例
+#
+# 用途：限制 Cloudflare Tunnel 只能转发白名单内的服务。
+# 规则从上往下匹配，命中即停止；最后一条不写 hostname 的
+# `http_status:404` 是兜底，任何未显式列出的 hostname 一律 404，
+# 相当于“默认拒绝，只放行白名单”。
+#
+# 使用前提（token 模式不需要本文件，配置在 Cloudflare 控制台）：
+#   1. 使用 TUNNEL_ID + TUNNEL_CRED_FILE 方式启动（token 优先于本文件）
+#   2. 复制为 net/cloudflared/config.yml
+#   3. compose 中取消注释 volumes 里的
+#      ./net/cloudflared/config.yml:/etc/cloudflared/config.yml:ro
+#   4. .env 里设置 TUNNEL_CONFIG=/etc/cloudflared/config.yml
+#   5. 把下面的 tunnel id / 服务地址改成你自己的
+# ============================================================
+
+# 与 .env 的 TUNNEL_ID 一致
+tunnel: 00000000-0000-0000-0000-000000000000
+
+# 凭据文件路径（cfd-state 卷已挂载到 /etc/cloudflared）
+credentials-file: /etc/cloudflared/00000000-0000-0000-0000-000000000000.json
+
+ingress:
+  # 只在这里列出允许暴露的服务
+  - hostname: app.example.com
+    service: http://localhost:8080
+  - hostname: dashboard.example.com
+    service: http://127.0.0.1:3000
+  # 不填 service 的规则是“健康检查”
+  # - hostname: status.example.com
+  #   service: http_status:200
+
+  # 兜底：未在 ingress 中显式列出的 hostname/路径 -> 404（必须放最后）
+  - service: http_status:404
