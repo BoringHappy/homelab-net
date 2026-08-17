@@ -111,3 +111,24 @@ services:
 ## 自动重启
 
 任一核心进程（mihomo / tailscaled / warp-svc / cloudflared）退出时，容器随之退出，由 `restart: unless-stopped` 整体重启。Docker 对重启自带指数退避，不会高频硬重启。
+
+## 局域网固定 IP（macvlan）
+
+容器除了默认桥接网络，还会挂一个 macvlan 网络，从局域网拿到固定 IP。局域网设备可以直接访问容器，例如用 `192.168.5.50:7890` 作为代理，或把 `192.168.5.50` 当作 DNS 服务器。
+
+网卡、网段、网关、固定 IP 全部在 `.env` 里配置：
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `MACVLAN_PARENT` | `enp3s0` | 宿主机物理网卡名，**网卡变了只改这里** |
+| `MACVLAN_SUBNET` | `192.168.5.0/24` | 局域网网段 |
+| `MACVLAN_GATEWAY` | `192.168.5.1` | 主路由 IP |
+| `NET_IP` | `192.168.5.50` | 容器固定 IP（建议选 DHCP 池之外的地址） |
+
+注意事项：
+
+- 网卡名（如 `enp3s0`）不同机器可能不同，更换宿主机或网卡时只需改 `.env`，不用动 compose。
+- macvlan 的限制：**宿主机自己无法直接访问 macvlan 容器的 IP**（需要额外在宿主机建 macvlan 子接口），局域网其他设备不受影响。
+- 挂上 macvlan 后，LAN 网段是容器的本地接口子网，mihomo 的 `auto-route` 会保持直连，与配置里的 LAN DIRECT 规则一致。
+- 不需要局域网固定 IP 时，删掉 compose 里 `net` 服务的 `networks` 段和文件底部的 `networks` 定义即可。
+- 需要宿主机也能访问容器 IP 的场景，可以改用 `ipvlan`，但 macvlan 更通用。
